@@ -1,0 +1,51 @@
+version: '3.8'  # Remove this line if using Docker Compose v2
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: etl
+    ports:
+      - "5432:5432"  # Use 5432 instead of 5433 (Airflow defaults to 5432)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  airflow-init:
+    image: apache/airflow:latest
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:root@postgres/etl
+    command: airflow db init
+
+  airflow-webserver:
+    image: apache/airflow:latest
+    container_name: airflow_webserver
+    depends_on:
+      - airflow-init
+    environment:
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:root@postgres/etl
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://postgres:root@postgres:5432/etl
+    ports:
+      - "8080:8080"
+    command: webserver
+    volumes:
+      - ./dags:/opt/airflow/dags
+
+  airflow-scheduler:
+    image: apache/airflow:latest
+    container_name: airflow_scheduler
+    depends_on:
+      - airflow-webserver
+    environment:
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:root@postgres/etl
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://postgres:root@postgres:5432/etl
+    command: scheduler
+    volumes:
+      - ./dags:/opt/airflow/dags
+
+volumes:
+  postgres_data:
